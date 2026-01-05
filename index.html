@@ -233,7 +233,21 @@
         </div>
 
         <div class="p-6 border-t border-gray-700 text-xs text-gray-500 text-center">
-            Dojo Digital v1.2
+            Dojo Digital v1.3 • Secured
+        </div>
+
+        <!-- Mobile Logoff Section -->
+        <div id="mobileSession" class="p-4 bg-gray-900 border-t border-gray-800 hidden">
+            <div class="flex items-center justify-between">
+                <div class="flex flex-col">
+                    <span class="text-[10px] text-gray-500 uppercase tracking-widest">Usuario</span>
+                    <span id="txtUsernameMobile" class="font-dojo text-kuma-accent uppercase">User</span>
+                </div>
+                <button onclick="logoff()"
+                    class="px-3 py-1 rounded border border-red-900/50 text-red-400 bg-red-900/10 text-xs font-bold uppercase tracking-wider hover:bg-red-900/30 transition-colors">
+                    Salir
+                </button>
+            </div>
         </div>
     </nav>
 
@@ -262,6 +276,19 @@
                         <span class="text-xs text-gray-400 uppercase tracking-wider">BIOmetrics</span>
                     </div>
                 </div>
+            </div>
+
+            <!-- User Session Display -->
+            <div id="userSessionDisplay"
+                class="hidden md:flex items-center gap-4 bg-gray-900/50 border border-gray-700 rounded-full px-4 py-1 mr-4">
+                <div class="flex items-center gap-2">
+                    <span id="txtUsername" class="font-dojo text-kuma-accent uppercase tracking-wide">User</span>
+                </div>
+                <div class="h-4 w-px bg-gray-700"></div>
+                <button onclick="logoff()"
+                    class="text-xs text-red-400 hover:text-red-300 uppercase tracking-widest font-bold transition-colors">
+                    LOGOFF
+                </button>
             </div>
 
             <div id="modeIndicator"
@@ -797,7 +824,7 @@
                 );
 
                 if (validUser) {
-                    enterApp();
+                    enterApp(validUser.user);
                 } else {
                     showLoginError("Acceso Denegado");
                     btn.disabled = false;
@@ -850,7 +877,14 @@
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        function enterApp() {
+        function enterApp(username) {
+            // Set User
+            document.getElementById('txtUsername').innerText = username || 'Invitado';
+            document.getElementById('txtUsernameMobile').innerText = username || 'Invitado';
+
+            // Show mobile session info
+            document.getElementById('mobileSession').classList.remove('hidden');
+
             splashScreen.style.opacity = '0';
             setTimeout(() => {
                 splashScreen.style.display = 'none';
@@ -861,6 +895,21 @@
                 updateUIStrings();
                 setMode('LOWER');
             }, 700);
+        }
+
+        function logoff() {
+            // UI Transition
+            appInterface.style.opacity = '0';
+            setTimeout(() => {
+                appInterface.classList.add('hidden');
+                splashScreen.style.display = 'flex';
+                // Reset Login Form
+                document.getElementById('loginPass').value = '';
+                document.getElementById('btnLoginText').innerText = "ENTRAR";
+                document.getElementById('btnLogin').disabled = false;
+
+                requestAnimationFrame(() => { splashScreen.style.opacity = '1'; });
+            }, 500);
         }
 
         // --- CONTROLS LOGIC (SYNC) ---

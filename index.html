@@ -168,21 +168,35 @@
     <div id="splashScreen"
         class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-kuma-dark transition-opacity duration-700">
         <div
-            class="relative w-64 h-64 mb-8 rounded-full overflow-hidden border-4 border-kuma-red shadow-2xl shadow-red-900/50">
+            class="relative w-48 h-48 mb-6 rounded-full overflow-hidden border-4 border-kuma-red shadow-2xl shadow-red-900/50">
             <img src="logoKuma.jpg" alt="Kuma Logo" class="w-full h-full object-cover">
         </div>
         <h1
-            class="font-dojo text-5xl font-bold tracking-wider mb-2 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
+            class="font-dojo text-4xl font-bold tracking-wider mb-2 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
             KUMA
         </h1>
-        <h2 class="font-dojo text-2xl text-kuma-red tracking-widest mb-12 uppercase">BIOmetrics</h2>
+        <h2 class="font-dojo text-xl text-kuma-red tracking-widest mb-8 uppercase">BIOmetrics</h2>
 
-        <button onclick="enterApp()"
-            class="group relative px-8 py-4 bg-transparent overflow-hidden rounded-md border border-kuma-red text-white transition-all hover:bg-kuma-red focus:outline-none">
-            <span
-                class="absolute right-0 w-8 h-32 -mt-12 transition-all duration-1000 transform translate-x-12 bg-white opacity-10 rotate-12 group-hover:-translate-x-40 ease"></span>
-            <span id="btnEnterLabel" class="font-dojo text-xl tracking-widest uppercase">Entrar al Dojo</span>
-        </button>
+        <!-- LOGIN FORM -->
+        <div class="w-full max-w-xs flex flex-col gap-4 px-4">
+            <div class="relative group">
+                <input type="text" id="loginUser" placeholder="Usuario"
+                    class="w-full bg-black/50 border border-gray-700 rounded p-3 text-white focus:outline-none focus:border-kuma-red transition-all text-center font-dojo tracking-wide uppercase placeholder-gray-600">
+            </div>
+            <div class="relative group">
+                <input type="password" id="loginPass" placeholder="Contraseña"
+                    class="w-full bg-black/50 border border-gray-700 rounded p-3 text-white focus:outline-none focus:border-kuma-red transition-all text-center font-dojo tracking-wide placeholder-gray-600">
+            </div>
+
+            <p id="loginError" class="text-kuma-red text-xs font-bold text-center h-4 opacity-0 transition-opacity">
+                Credenciales Incorrectas</p>
+
+            <button onclick="validateLogin()" id="btnLogin"
+                class="group relative w-full py-3 bg-transparent overflow-hidden rounded-md border border-kuma-red text-white transition-all hover:bg-kuma-red focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed">
+                <span id="btnLoginText" class="font-dojo text-lg tracking-widest uppercase">ENTRAR</span>
+            </button>
+            <p class="text-gray-600 text-[10px] text-center mt-2">Dojo Digital v1.3 • Secured</p>
+        </div>
     </div>
 
     <!-- NAVIGATION DRAWER -->
@@ -746,6 +760,96 @@
         let pose = null;
 
         // --- INIT ---
+        // --- INIT ---
+
+        // AUTH LOGIC
+        // Note: We use 'api.allorigins.win' to bypass CORS restrictions when running from a local file (file://)
+        const RAW_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRtxntVN64u-fG4s-Msp0GPYYanHF2_67GC3JYCW6fiiynvWpVb8obmVLIhMprKo4z-PYzMEaHf04Ms/pub?output=csv";
+        const SHEET_CSV_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(RAW_SHEET_URL)}`;
+
+        async function validateLogin() {
+            const userIn = document.getElementById('loginUser').value.trim();
+            const passIn = document.getElementById('loginPass').value.trim();
+            const btn = document.getElementById('btnLogin');
+            const err = document.getElementById('loginError');
+
+            if (!userIn || !passIn) {
+                showLoginError("Ingresa usuario y contraseña");
+                return;
+            }
+
+            // UI Loading
+            btn.disabled = true;
+            document.getElementById('btnLoginText').innerText = "VERIFICANDO...";
+            err.style.opacity = '0';
+
+            try {
+                // 1. Calculate Hash of Input
+                const hash = await hashPassword(passIn);
+
+                // 2. Fetch DB
+                const db = await fetchUserDatabase();
+
+                // 3. Compare
+                const validUser = db.find(row =>
+                    row.user.toLowerCase() === userIn.toLowerCase() &&
+                    (row.pass === hash || row.pass === passIn) // Allow plaintext for transition/testing if needed, but Hash is preferred
+                );
+
+                if (validUser) {
+                    enterApp();
+                } else {
+                    showLoginError("Acceso Denegado");
+                    btn.disabled = false;
+                    document.getElementById('btnLoginText').innerText = "ENTRAR";
+                }
+
+            } catch (e) {
+                console.error(e);
+                showLoginError("Error de Conexión");
+                btn.disabled = false;
+                document.getElementById('btnLoginText').innerText = "ENTRAR";
+            }
+        }
+
+        function showLoginError(msg) {
+            const err = document.getElementById('loginError');
+            err.innerText = msg;
+            err.style.opacity = '1';
+            // Shake effect
+            const inputs = [document.getElementById('loginUser'), document.getElementById('loginPass')];
+            inputs.forEach(i => {
+                i.classList.add('border-red-500');
+                setTimeout(() => i.classList.remove('border-red-500'), 500);
+            });
+        }
+
+        async function fetchUserDatabase() {
+            const res = await fetch(SHEET_CSV_URL);
+            const text = await res.text();
+            // Parse CSV (Simple)
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            const data = [];
+            // Assume Row 0 is Header
+            for (let i = 1; i < lines.length; i++) {
+                const parts = lines[i].split(',');
+                if (parts.length >= 2) {
+                    data.push({
+                        user: parts[0].trim(),
+                        pass: parts[1].trim() // This should be the hash
+                    });
+                }
+            }
+            return data;
+        }
+
+        async function hashPassword(text) {
+            const msgBuffer = new TextEncoder().encode(text);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
         function enterApp() {
             splashScreen.style.opacity = '0';
             setTimeout(() => {

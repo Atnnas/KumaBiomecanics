@@ -852,21 +852,37 @@
         }
 
         async function fetchUserDatabase() {
-            const res = await fetch(SHEET_CSV_URL);
+            // Add timestamp to prevent caching from the Proxy or Browser
+            const cacheBuster = `&_t=${Date.now()}`;
+            const res = await fetch(SHEET_CSV_URL + cacheBuster);
+
+            if (!res.ok) throw new Error("Failed to fetch DB");
+
             const text = await res.text();
-            // Parse CSV (Simple)
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+            // Robust CSV Parsing
+            // 1. Split by newlines (handling \r\n and \n)
+            const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+
             const data = [];
-            // Assume Row 0 is Header
+            // Assume Row 0 (Index 0) is Header: "Usuario,Password"
+            // Start from Row 1 (Index 1) -> Excel Row 2
             for (let i = 1; i < lines.length; i++) {
+                // Simple comma split (Works for simple alphanumeric creds)
+                // If you need to handle commas in passwords, we'd need a regex parser.
+                // For now, simple split is efficient and sufficient for this use case.
                 const parts = lines[i].split(',');
+
                 if (parts.length >= 2) {
-                    data.push({
-                        user: parts[0].trim(),
-                        pass: parts[1].trim() // This should be the hash
-                    });
+                    const user = parts[0].trim();
+                    const pass = parts[1].trim(); // Hash or Plaintext
+
+                    if (user && pass) {
+                        data.push({ user, pass });
+                    }
                 }
             }
+            console.log(`[DB] Cargados ${data.length} usuarios desde Google Sheets.`);
             return data;
         }
 

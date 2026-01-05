@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kuma BIOmetrics | Dojo Digital</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,300;0,600;0,800;1,600&family=Roboto:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'kuma-red': '#C62828',
+                        'kuma-dark': '#0a0a0a',
+                        'kuma-card': '#1a1a1a',
+                        'kuma-brown': '#5D4037',
+                        'kuma-accent': '#FFD700', // Gold/Yellow
+                        'kuma-cyan': '#00FFFF',   // Capture Mode
+                    },
+                    fontFamily: {
+                        'dojo': ['Kanit', 'sans-serif'],
+                        'body': ['Roboto', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'glow-green': '0 0 30px rgba(0, 255, 0, 0.5)',
+                        'glow-red': '0 0 30px rgba(255, 0, 0, 0.5)',
+                        'glow-cyan': '0 0 30px rgba(0, 255, 255, 0.4)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- MediaPipe Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+    <style>
+        /* Custom Utilities */
+        body {
+            background-color: #0a0a0a;
+            background-image:
+                radial-gradient(circle at 50% 0%, #1a1a1a 10%, transparent 10%),
+                radial-gradient(circle at 50% 100%, #2a0a0a 10%, transparent 10%);
+            background-size: 40px 40px;
+        }
+
+        .glass-panel {
+            background: rgba(26, 26, 26, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16/9;
+            margin: 0 auto;
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 4px solid #333;
+            transition: all 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .canvas-container {
+                aspect-ratio: 9/16;
+            }
+        }
+
+        /* Navigation Drawer */
+        #mainNav {
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #mainNav.open {
+            transform: translateX(0);
+        }
+
+        #navBackdrop {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        #navBackdrop.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .video-feed {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .output-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+        }
+
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        /* Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #FFD700;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #333;
+            border-radius: 2px;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+    </style>
+</head>
+
+<body class="text-white h-screen overflow-hidden flex flex-col font-body">
+
+    <!-- SPLASH SCREEN -->
+    <div id="splashScreen"
+        class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-kuma-dark transition-opacity duration-700">
+        <div
+            class="relative w-64 h-64 mb-8 rounded-full overflow-hidden border-4 border-kuma-red shadow-2xl shadow-red-900/50">
+            <img src="logoKuma.jpg" alt="Kuma Logo" class="w-full h-full object-cover">
+        </div>
+        <h1
+            class="font-dojo text-5xl font-bold tracking-wider mb-2 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
+            KUMA
+        </h1>
+        <h2 class="font-dojo text-2xl text-kuma-red tracking-widest mb-12 uppercase">BIOmetrics</h2>
+
+        <button onclick="enterApp()"
+            class="group relative px-8 py-4 bg-transparent overflow-hidden rounded-md border border-kuma-red text-white transition-all hover:bg-kuma-red focus:outline-none">
+            <span
+                class="absolute right-0 w-8 h-32 -mt-12 transition-all duration-1000 transform translate-x-12 bg-white opacity-10 rotate-12 group-hover:-translate-x-40 ease"></span>
+            <span id="btnEnterLabel" class="font-dojo text-xl tracking-widest uppercase">Entrar al Dojo</span>
+        </button>
+    </div>
+
+    <!-- NAVIGATION DRAWER -->
+    <div id="navBackdrop" class="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" onclick="toggleMenu()"></div>
+
+    <nav id="mainNav"
+        class="fixed inset-y-0 left-0 w-72 glass-panel border-r border-gray-700 z-50 flex flex-col shadow-2xl">
+        <div class="p-6 border-b border-gray-700 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full overflow-hidden border border-kuma-red">
+                <img src="logoKuma.jpg" alt="Logo" class="w-full h-full object-cover">
+            </div>
+            <div>
+                <h2 class="font-dojo text-lg tracking-wide">KUMA</h2>
+                <span class="text-xs text-kuma-red uppercase">BIOmetrics</span>
+            </div>
+        </div>
+
+        <div class="flex-1 p-4 flex flex-col gap-2">
+            <button onclick="navigateTo('sidebarSimple')"
+                class="text-left px-4 py-3 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-3 group">
+                <span class="text-xl group-hover:text-kuma-cyan transition-colors">👁️</span>
+                <span id="navSimple" class="font-dojo text-sm tracking-wide">Revisión Simple</span>
+            </button>
+            <button onclick="navigateTo('sidebarDrills')"
+                class="text-left px-4 py-3 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-3 group">
+                <span class="text-xl group-hover:text-kuma-red transition-colors">🥋</span>
+                <span id="navDrills" class="font-dojo text-sm tracking-wide">Drills</span>
+            </button>
+            <button onclick="navigateTo('sidebarJump')"
+                class="text-left px-4 py-3 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-3 group">
+                <span class="text-xl group-hover:text-kuma-accent transition-colors">🦘</span>
+                <span id="navJump" class="font-dojo text-sm tracking-wide">Laboratorio de Salto</span>
+            </button>
+        </div>
+
+        <div class="p-6 border-t border-gray-700 text-xs text-gray-500 text-center">
+            Dojo Digital v1.2
+        </div>
+    </nav>
+
+
+    <!-- MAIN APP INTERFACE -->
+    <main id="appInterface" class="flex-1 flex flex-col opacity-0 transition-opacity duration-1000 hidden relative">
+
+        <!-- Header -->
+        <header class="p-4 flex items-center justify-between glass-panel border-b border-gray-800 z-20">
+            <div class="flex items-center gap-4">
+                <!-- Hamburger Button -->
+                <button onclick="toggleMenu()" class="p-2 -ml-2 rounded-lg hover:bg-white/10 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                        stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                    </svg>
+                </button>
+
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full overflow-hidden border border-kuma-red md:hidden">
+                        <img src="logoKuma.jpg" alt="Logo" class="w-full h-full object-cover">
+                    </div>
+                    <div class="hidden md:block">
+                        <h1 class="font-dojo text-xl leading-none">KUMA</h1>
+                        <span class="text-xs text-gray-400 uppercase tracking-wider">BIOmetrics</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="modeIndicator"
+                class="hidden md:flex px-4 py-1 rounded border border-gray-600 bg-gray-900 text-sm font-dojo uppercase tracking-widest text-kuma-cyan">
+
+            </div>
+
+            <div class="flex items-center gap-4">
+                <button onclick="toggleLanguage()"
+                    class=" text-xs font-bold font-mono bg-gray-800 hover:bg-gray-700 border border-gray-600 px-2 py-1 rounded transition-colors text-kuma-accent">
+                    <span id="langDisplay">ES</span> | <span class="text-gray-500">EN</span>
+                </button>
+                <div id="connectionStatus"
+                    class="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-800 border border-gray-700">
+                    <div class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+                    <span class="text-xs font-mono text-gray-300">SYSTEM READY</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- CONTENT ROW -->
+        <div class="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
+
+            <!-- LEFT COLUMN: SIDEBARS CONTAINER -->
+
+            <!-- SIDEBAR 1: SIMPLE -->
+            <div id="sidebarSimple"
+                class="w-full md:w-80 flex-none glass-panel border-r border-gray-800 p-6 flex flex-col gap-6 overflow-y-auto z-10">
+                <!-- Zone Selection -->
+                <div>
+                    <h3 class="lblZone font-dojo text-gray-400 text-xs uppercase tracking-widest mb-3">Zona de Análisis
+                    </h3>
+                    <div class="flex flex-col gap-2">
+                        <button onclick="setMode('LOWER')"
+                            class="btnModeLower flex items-center justify-between p-3 rounded bg-kuma-red text-white border border-transparent shadow-lg transition-all">
+                            <span class="lblLower font-bold">Tren Inferior</span>
+                            <span class="text-xl">🦵</span>
+                        </button>
+                        <button onclick="setMode('UPPER')"
+                            class="btnModeUpper flex items-center justify-between p-3 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700 transition-all">
+                            <span class="lblUpper font-bold">Tren Superior</span>
+                            <span class="text-xl">💪</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Strictness Slider -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="lblStrictness font-dojo text-kuma-accent text-xs uppercase tracking-widest">
+                            Rigurosidad</h3>
+                        <span class="strictnessValue text-xs font-mono text-white">50%</span>
+                    </div>
+                    <input type="range" min="0" max="100" value="50" oninput="updateStrictness(this.value)"
+                        class="strictnessSlider">
+                </div>
+
+                <hr class="border-gray-700">
+
+                <!-- Controls -->
+                <div>
+                    <h3 class="lblControl font-dojo text-gray-400 text-xs uppercase tracking-widest mb-3">Control</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="captureReference()"
+                            class="control-capture col-span-2 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-lg border border-gray-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group">
+                            <span class="text-2xl group-hover:scale-110 transition-transform">📸</span>
+                            <span class="lblCapture font-dojo uppercase tracking-wide">Capturar</span>
+                        </button>
+
+                        <button onclick="resetReference()" disabled
+                            class="control-reset col-span-2 py-3 bg-gray-900 hover:bg-gray-800 text-gray-300 rounded-lg border border-gray-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                            <span class="text-lg">🔄</span>
+                            <span class="lblReset font-dojo text-sm uppercase">Reiniciar</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between px-2">
+                    <span class="lblSound text-xs text-gray-400 font-dojo uppercase">Sonido BIP</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="audioToggleS" class="audioToggle sr-only peer" checked
+                            onchange="syncAudio(this.checked)">
+                        <div
+                            class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-kuma-cyan">
+                        </div>
+                    </label>
+                </div>
+
+                <div class="mt-auto bg-black/40 p-4 rounded border border-gray-800">
+                    <h4 class="lblInstructionsTitle text-kuma-cyan font-bold text-xs uppercase mb-2">Instrucciones</h4>
+                    <p class="instructionText text-xs text-gray-400 leading-relaxed">
+                        Enfoca tus piernas. Adopta la postura y presiona Capturar.
+                    </p>
+                </div>
+            </div>
+
+            <!-- SIDEBAR 2: DRILLS -->
+            <div id="sidebarDrills"
+                class="hidden w-full md:w-80 flex-none glass-panel border-r border-gray-800 p-6 flex flex-col gap-6 overflow-y-auto z-10 bg-kuma-card">
+                <!-- Zone Selection (Parity) -->
+                <div>
+                    <h3 class="lblZone font-dojo text-gray-400 text-xs uppercase tracking-widest mb-3">Zona de Análisis
+                    </h3>
+                    <div class="flex flex-col gap-2">
+                        <button onclick="setMode('LOWER')"
+                            class="btnModeLower flex items-center justify-between p-3 rounded bg-kuma-red text-white border border-transparent shadow-lg transition-all">
+                            <span class="lblLower font-bold">Tren Inferior</span>
+                            <span class="text-xl">🦵</span>
+                        </button>
+                        <button onclick="setMode('UPPER')"
+                            class="btnModeUpper flex items-center justify-between p-3 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700 transition-all">
+                            <span class="lblUpper font-bold">Tren Superior</span>
+                            <span class="text-xl">💪</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Strictness Slider (Parity) -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="lblStrictness font-dojo text-kuma-accent text-xs uppercase tracking-widest">
+                            Rigurosidad</h3>
+                        <span class="strictnessValue text-xs font-mono text-white">50%</span>
+                    </div>
+                    <input type="range" min="0" max="100" value="50" oninput="updateStrictness(this.value)"
+                        class="strictnessSlider">
+                </div>
+
+                <div>
+                    <h3 class="lblConfigDrill font-dojo text-gray-400 text-xs uppercase tracking-widest mb-3">
+                        Configuración Drill</h3>
+                    <div class="flex flex-col gap-3">
+
+                        <!-- Action Time Stepper -->
+                        <div
+                            class="bg-gray-900/60 p-3 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-kuma-cyan/50 transition-colors">
+                            <div
+                                class="absolute top-0 right-0 p-1 opacity-20 group-hover:opacity-100 transition-opacity">
+                                <span class="text-kuma-cyan text-xs">⏱️</span>
+                            </div>
+                            <label
+                                class="lblSecondsEx text-[10px] text-kuma-cyan uppercase tracking-wider block mb-1">Tiempo
+                                Acción (Movimiento)</label>
+                            <div class="flex items-center justify-between">
+                                <button onclick="adjustDrillValue('drillExTime', -1)"
+                                    class="w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center border border-gray-600 transition-all active:scale-95 text-lg">-</button>
+                                <span id="disp_drillExTime" class="text-2xl font-bold font-mono text-white">5</span>
+                                <input type="hidden" id="drillExTime" value="5">
+                                <button onclick="adjustDrillValue('drillExTime', 1)"
+                                    class="w-8 h-8 rounded-full bg-gray-800 hover:bg-white text-black flex items-center justify-center border border-gray-600 transition-all active:scale-95 font-bold text-lg">+</button>
+                            </div>
+                        </div>
+
+                        <!-- Hold Time Stepper -->
+                        <div
+                            class="bg-gray-900/60 p-3 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-kuma-red/50 transition-colors">
+                            <div
+                                class="absolute top-0 right-0 p-1 opacity-20 group-hover:opacity-100 transition-opacity">
+                                <span class="text-kuma-red text-xs">🛑</span>
+                            </div>
+                            <label
+                                class="lblSecondsHold text-[10px] text-kuma-red uppercase tracking-wider block mb-1">Tiempo
+                                Revisión (Postura)</label>
+                            <div class="flex items-center justify-between">
+                                <button onclick="adjustDrillValue('drillHoldTime', -1)"
+                                    class="w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center border border-gray-600 transition-all active:scale-95 text-lg">-</button>
+                                <span id="disp_drillHoldTime" class="text-2xl font-bold font-mono text-white">3</span>
+                                <input type="hidden" id="drillHoldTime" value="3">
+                                <button onclick="adjustDrillValue('drillHoldTime', 1)"
+                                    class="w-8 h-8 rounded-full bg-gray-800 hover:bg-white text-black flex items-center justify-center border border-gray-600 transition-all active:scale-95 font-bold text-lg">+</button>
+                            </div>
+                        </div>
+
+                        <!-- Reps Stepper -->
+                        <div
+                            class="bg-gray-900/60 p-3 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-kuma-accent/50 transition-colors">
+                            <div
+                                class="absolute top-0 right-0 p-1 opacity-20 group-hover:opacity-100 transition-opacity">
+                                <span class="text-kuma-accent text-xs">🔄</span>
+                            </div>
+                            <label
+                                class="lblReps text-[10px] text-gray-400 uppercase tracking-wider block mb-1">Repeticiones</label>
+                            <div class="flex items-center justify-between">
+                                <button onclick="adjustDrillValue('drillReps', -1)"
+                                    class="w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center border border-gray-600 transition-all active:scale-95 text-lg">-</button>
+                                <span id="disp_drillReps" class="text-2xl font-bold font-mono text-kuma-accent">5</span>
+                                <input type="hidden" id="drillReps" value="5">
+                                <button onclick="adjustDrillValue('drillReps', 1)"
+                                    class="w-8 h-8 rounded-full bg-gray-800 hover:bg-white text-black flex items-center justify-center border border-gray-600 transition-all active:scale-95 font-bold text-lg">+</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <hr class="border-gray-700">
+
+                <div>
+                    <h3 class="lblControlDrill font-dojo text-gray-400 text-xs uppercase tracking-widest mb-3">Control
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="captureReference()"
+                            class="control-capture col-span-2 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg border border-gray-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group">
+                            <span class="text-xl">📸</span>
+                            <span class="lblCapture font-dojo uppercase tracking-wide">Capturar</span>
+                        </button>
+
+                        <button onclick="resetReference()" disabled
+                            class="control-reset col-span-2 py-2 bg-gray-900 hover:bg-gray-800 text-gray-300 rounded-lg border border-gray-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                            <span class="text-lg">🔄</span>
+                            <span class="lblReset font-dojo text-sm uppercase">Reiniciar</span>
+                        </button>
+
+                        <!-- START DRILL -->
+                        <button onclick="startDrill()" id="btnStartDrill" disabled
+                            class="col-span-2 mt-2 py-4 bg-kuma-accent text-black hover:bg-yellow-400 rounded-lg shadow-lg shadow-yellow-900/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale font-bold">
+                            <span class="text-2xl">▶️</span>
+                            <span id="lblStartDrill" class="font-dojo uppercase tracking-wide">INICIAR DRILL</span>
+                        </button>
+
+                        <!-- STOP DRILL (Hidden by default) -->
+                        <button onclick="stopDrill()" id="btnStopDrill"
+                            class="hidden col-span-2 mt-2 py-4 bg-kuma-red text-white hover:bg-red-700 rounded-lg shadow-lg shadow-red-900/20 transition-all flex items-center justify-center gap-3 font-bold animate-pulse">
+                            <span class="text-2xl">⏹️</span>
+                            <span id="lblStopDrill" class="font-dojo uppercase tracking-wide">DETENER</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SIDEBAR 3: JUMP LAB -->
+            <div id="sidebarJump"
+                class="hidden w-full md:w-80 flex-none glass-panel border-r border-gray-800 p-6 flex flex-col gap-6 overflow-y-auto z-10 bg-black/80">
+
+                <div>
+                    <h3
+                        class="lblJumpLab font-dojo text-kuma-cyan text-sm uppercase tracking-widest mb-3 border-b border-kuma-cyan/30 pb-2">
+                        Laboratorio de Salto</h3>
+                    <p class="lblJumpInstr text-xs text-gray-400 leading-relaxed mb-4">
+                        Mide la altura real de tu salto vertical. Primero calibra tu altura.
+                    </p>
+
+                    <!-- Athlete Height Input -->
+                    <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-700 mb-4">
+                        <label
+                            class="lblAthleteHeight text-[10px] text-gray-400 uppercase tracking-wider block mb-1">Altura
+                            Atleta (cm)</label>
+                        <div class="flex items-center justify-between">
+                            <button onclick="adjustDrillValue('athleteHeight', -1)"
+                                class="w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center border border-gray-600 active:scale-95">-</button>
+                            <span id="disp_athleteHeight" class="text-2xl font-bold font-mono text-white">170</span>
+                            <input type="hidden" id="athleteHeight" value="170">
+                            <button onclick="adjustDrillValue('athleteHeight', 1)"
+                                class="w-8 h-8 rounded-full bg-gray-800 hover:bg-white text-black flex items-center justify-center border border-gray-600 active:scale-95">+</button>
+                        </div>
+                    </div>
+
+                    <button onclick="calibrateJump()" id="btnCalibrate"
+                        class="w-full py-3 bg-gray-800 hover:bg-white hover:text-black text-white rounded-lg border border-gray-600 transition-all flex items-center justify-center gap-2 font-bold uppercase tracking-wide disabled:opacity-50">
+                        <span class="text-lg">📏</span> <span class="lblCalibrate">CALIBRAR</span>
+                    </button>
+                </div>
+
+                <hr class="border-gray-700">
+
+                <div class="flex-1 flex flex-col items-center justify-center text-center">
+                    <div class="mb-2 text-xs text-gray-500 uppercase tracking-widest lblCurrentJump">Salto Actual</div>
+                    <div class="text-6xl font-mono font-bold text-kuma-cyan mb-6" id="jumpHeightVal">0<span
+                            class="text-2xl text-gray-600">cm</span></div>
+
+                    <div class="mb-1 text-[10px] text-kuma-accent uppercase tracking-widest lblMaxJump">Récord Personal
+                    </div>
+                    <div class="text-3xl font-mono font-bold text-white border border-kuma-accent/30 px-4 py-1 rounded bg-kuma-accent/10"
+                        id="jumpMaxVal">0<span class="text-sm text-gray-400">cm</span></div>
+                </div>
+
+                <button onclick="resetJump()"
+                    class="mt-auto py-2 bg-gray-900 hover:bg-red-900/30 text-gray-400 hover:text-red-400 rounded border border-gray-800 transition-all text-xs uppercase tracking-widest">
+                    <span class="lblReset">RESET</span>
+                </button>
+            </div>
+
+
+            <!-- RIGHT COLUMN: SHARED VIEWPORT -->
+            <div class="flex-1 relative bg-black flex items-center justify-center p-4">
+                <div id="videoContainer" class="canvas-container bg-black shadow-2xl relative">
+
+                    <!-- Feedback Status -->
+                    <div id="feedbackOverlay"
+                        class="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 px-6 py-2 rounded-full glass-panel shadow-lg min-w-[200px] text-center transition-colors duration-300 border-2">
+                        <span id="feedbackIcon" class="mr-2">⌛</span>
+                        <span id="feedbackText" class="font-dojo tracking-wide text-sm font-bold">INICIANDO...</span>
+                    </div>
+
+                    <!-- SIMPLE REVIEW HOLD TIMER OVERLAY -->
+                    <div id="holdTimerOverlay" class="absolute top-4 right-4 z-20 flex flex-col items-end hidden">
+                        <div
+                            class="bg-black/40 backdrop-blur-sm border border-white/10 rounded-lg p-3 text-right shadow-xl">
+                            <div class="text-[10px] text-gray-400 font-dojo uppercase tracking-widest mb-1">Tiempo
+                                Mantenido</div>
+                            <div class="text-4xl font-mono font-bold text-kuma-accent tabular-nums leading-none mb-1"
+                                id="holdTimerVal">0.0s</div>
+                            <div class="text-[10px] text-kuma-cyan font-bold uppercase tracking-wide hidden"
+                                id="holdTimerBest">Récord: <span id="holdMaxVal">0.0s</span></div>
+                        </div>
+                    </div>
+
+                    <!-- DRILL OVERLAY -->
+                    <div id="drillOverlay"
+                        class="absolute inset-0 flex flex-col items-center justify-start pt-8 z-30 pointer-events-none hidden">
+                        <!-- No Blur Background -->
+                        <div class="relative z-40 text-center flex flex-col items-center gap-2">
+                            <div
+                                class="flex items-center gap-4 bg-black/40 px-6 py-2 rounded-full border border-white/10 backdrop-blur-none shadow-xl">
+                                <h2 id="drillPhase"
+                                    class="font-dojo text-3xl text-white font-bold tracking-wider drop-shadow-md animate-bounce mb-0"
+                                    style="text-shadow: 1px 1px 0 #000;">PREPARA</h2>
+                                <div class="w-px h-8 bg-gray-500"></div>
+                                <div class="text-[40px] leading-none font-mono font-bold text-kuma-accent drop-shadow-md"
+                                    id="drillTimer" style="text-shadow: 2px 2px 0 #000;">3</div>
+                            </div>
+                            <div
+                                class="text-sm text-gray-200 font-dojo uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full border border-white/10 shadow-lg">
+                                Reps: <span id="drillRepsDisplay" class="text-white font-bold">5</span></div>
+                        </div>
+                    </div>
+
+                    <video class="input_video hidden" playsinline></video>
+                    <canvas class="output_canvas"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- LOGIC -->
+    <script>
+        // --- TRANSLATIONS ---
+        const translations = {
+            es: {
+                btnEnter: "Entrar al Dojo",
+                navSimple: "Revisión Simple",
+                navDrills: "Drills",
+                lblZone: "Zona de Análisis",
+                lblLower: "Tren Inferior",
+                lblUpper: "Tren Superior",
+                lblStrictness: "Rigurosidad",
+                lblControl: "Control",
+                lblCapture: "Capturar",
+                lblReset: "Reiniciar",
+                lblSound: "Sonido BIP",
+                lblInstructionsTitle: "Instrucciones",
+                instrLower: "Enfoca tus PIERNAS. Adopta postura y captura.",
+                instrUpper: "Enfoca tu TORSO. Prepara tu guardia y captura.",
+                // Status
+                stLookingPose: "BUSCANDO POSTURA",
+                stSaved: "REFERENCIA GUARDADA",
+                stExcellent: "EXCELENTE",
+                stCorrect: "CORRIGE",
+                stNoVisible: "NO VISIBLE",
+                stReady: "LISTO",
+                stWaiting: "ESPERANDO...",
+                stNoLegs: "PIERNAS NO VISIBLES",
+                stNoTorso: "TORSO NO VISIBLE",
+                // Drills
+                lblConfigDrill: "Configuración Drill",
+                lblSecondsEx: "Tiempo Acción (Movimiento)",
+                lblSecondsHold: "Tiempo Revisión (Postura)",
+                lblReps: "Repeticiones",
+                lblControlDrill: "Control",
+                lblStartDrill: "INICIAR DRILL",
+                lblStopDrill: "DETENER",
+                drillPhasePrepare: "PREPARA",
+                drillPhaseMove: "¡MUÉVETE!",
+                drillPhaseHold: "¡MANTÉN!",
+                drillPhaseComplete: "¡COMPLETADO!",
+                // Jump Lab
+                lblJumpLab: "Laboratorio de Salto",
+                lblCalibrate: "CALIBRAR",
+                lblCurrentJump: "Salto Actual",
+                lblMaxJump: "Récord Personal",
+                lblAthleteHeight: "Altura Atleta (cm)",
+                lblJumpInstr: "Mide la altura real de tu salto vertical. Primero calibra tu altura."
+            },
+            en: {
+                btnEnter: "Enter Dojo",
+                navSimple: "Simple Review",
+                navDrills: "Drills",
+                lblZone: "Analysis Zone",
+                lblLower: "Lower Body",
+                lblUpper: "Upper Body",
+                lblStrictness: "Strictness",
+                lblControl: "Controls",
+                lblCapture: "Capture",
+                lblReset: "Reset",
+                lblSound: "BEEP Sound",
+                lblInstructionsTitle: "Instructions",
+                instrLower: "Focus on LEGS. Adopt stance and capture.",
+                instrUpper: "Focus on TORSO. Prepare guard and capture.",
+                // Status
+                stLookingPose: "SEARCHING POSE",
+                stSaved: "REFERENCE SAVED",
+                stExcellent: "EXCELLENT",
+                stCorrect: "CORRECT IT",
+                stNoVisible: "NOT VISIBLE",
+                stReady: "READY",
+                stWaiting: "WAITING...",
+                stNoLegs: "LEGS NOT VISIBLE",
+                stNoTorso: "TORSO NOT VISIBLE",
+                // Drills
+                lblConfigDrill: "Drill Config",
+                lblSecondsEx: "Action Time (Move)",
+                lblSecondsHold: "Review Time (Hold)",
+                lblReps: "Repetitions",
+                lblControlDrill: "Drill Control",
+                lblStartDrill: "START DRILL",
+                lblStopDrill: "STOP",
+                drillPhasePrepare: "PREPARE",
+                drillPhaseMove: "MOVE!",
+                drillPhaseHold: "HOLD!",
+                drillPhaseComplete: "COMPLETE!",
+                // Jump Lab
+                lblJumpLab: "Jump Lab",
+                lblCalibrate: "CALIBRATE",
+                lblCurrentJump: "Current Jump",
+                lblMaxJump: "Personal Best",
+                lblAthleteHeight: "Athlete Height (cm)",
+                lblJumpInstr: "Measure real vertical jump height. Calibrate your height first."
+            }
+        };
+
+        let currentLang = 'es';
+
+        function t(key) { return translations[currentLang][key] || key; }
+
+        // --- DOM ---
+        const splashScreen = document.getElementById('splashScreen');
+        const appInterface = document.getElementById('appInterface');
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const canvasElement = document.getElementsByClassName('output_canvas')[0];
+        const canvasCtx = canvasElement.getContext('2d');
+        const videoContainer = document.getElementById('videoContainer');
+
+        // Status & UI
+        const feedbackText = document.getElementById('feedbackText');
+        const feedbackIcon = document.getElementById('feedbackIcon');
+        const feedbackOverlay = document.getElementById('feedbackOverlay');
+        const modeIndicator = document.getElementById('modeIndicator');
+        const langDisplay = document.getElementById('langDisplay');
+        const mainNav = document.getElementById('mainNav');
+        const navBackdrop = document.getElementById('navBackdrop');
+        const sidebarSimple = document.getElementById('sidebarSimple');
+        const sidebarDrills = document.getElementById('sidebarDrills');
+
+        // Drills Elements
+        const drillOverlay = document.getElementById('drillOverlay');
+        const drillPhase = document.getElementById('drillPhase');
+        const drillTimerEl = document.getElementById('drillTimer');
+        const drillRepsDisplay = document.getElementById('drillRepsDisplay');
+        const btnStartDrill = document.getElementById('btnStartDrill');
+        const btnStopDrill = document.getElementById('btnStopDrill');
+
+        // Hold Timer Elements
+        const holdTimerOverlay = document.getElementById('holdTimerOverlay');
+        const holdTimerVal = document.getElementById('holdTimerVal');
+        const holdTimerBest = document.getElementById('holdTimerBest');
+        const holdMaxVal = document.getElementById('holdMaxVal');
+
+        // --- STATE ---
+        let currentMode = 'LOWER';
+        let strictness = 50;
+        let audioCtx = null;
+        let lastBeepTime = 0;
+        let isAudioOn = true;
+
+        let referenceGeometry = null;
+        let referenceLandmarks = null;
+        let currentPoseLandmarks = null;
+
+        // Hold Timer State
+        let holdStartTime = 0;
+        let currentHoldTime = 0;
+        let maxHoldTime = 0;
+        let isHolding = false;
+
+        // Jump Lab State
+        let pixelsPerCm = 0;
+        let standingHipY = 0;
+        let maxJumpHeight = 0;
+        let isCalibrated = false;
+
+        let drillInterval = null;
+        let isDrillActive = false;
+        let camera = null;
+        let pose = null;
+
+        // --- INIT ---
+        function enterApp() {
+            splashScreen.style.opacity = '0';
+            setTimeout(() => {
+                splashScreen.style.display = 'none';
+                appInterface.classList.remove('hidden');
+                requestAnimationFrame(() => { appInterface.style.opacity = '1'; });
+                initMediaPipe();
+                initAudio();
+                updateUIStrings();
+                setMode('LOWER');
+            }, 700);
+        }
+
+        // --- CONTROLS LOGIC (SYNC) ---
+
+        function setMode(mode) {
+            currentMode = mode;
+            resetReference();
+
+            const activeClass = "bg-kuma-red text-white border-transparent shadow-lg";
+            const inactiveClass = "bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700";
+
+            // Sync buttons in BOTH sidebars
+            document.querySelectorAll('.btnModeLower').forEach(b => b.className = `btnModeLower flex items-center justify-between p-3 rounded ${mode === 'LOWER' ? activeClass : inactiveClass} transition-all`);
+            document.querySelectorAll('.btnModeUpper').forEach(b => b.className = `btnModeUpper flex items-center justify-between p-3 rounded ${mode === 'UPPER' ? activeClass : inactiveClass} transition-all`);
+
+            updateUIStrings(); // Update instructions/header
+        }
+
+        function updateStrictness(val) {
+            strictness = val;
+            // Sync all sliders
+            document.querySelectorAll('.strictnessSlider').forEach(s => s.value = val);
+            document.querySelectorAll('.strictnessValue').forEach(s => s.innerText = val + "%");
+        }
+
+        function syncAudio(checked) {
+            isAudioOn = checked;
+            document.querySelectorAll('.audioToggle').forEach(c => c.checked = checked);
+        }
+
+        function adjustDrillValue(id, delta) {
+            const el = document.getElementById(id);
+            const disp = document.getElementById('disp_' + id);
+            let val = parseInt(el.value);
+            val += delta;
+            if (val < 1) val = 1;
+            el.value = val;
+            disp.innerText = val;
+        }
+
+        // --- NAVIGATION ---
+        function toggleMenu() {
+            mainNav.classList.toggle('open');
+            navBackdrop.classList.toggle('open');
+        }
+
+        function navigateTo(targetId) {
+            mainNav.classList.remove('open');
+            navBackdrop.classList.remove('open');
+            sidebarSimple.classList.add('hidden');
+            sidebarDrills.classList.add('hidden');
+            document.getElementById('sidebarJump').classList.add('hidden');
+
+            document.getElementById(targetId).classList.remove('hidden');
+
+            if (targetId === 'sidebarSimple' && isDrillActive) stopDrill();
+
+            // Toggle Hold Timer Visibility
+            if (targetId === 'sidebarSimple') {
+                holdTimerOverlay.classList.remove('hidden');
+            } else {
+                holdTimerOverlay.classList.add('hidden');
+            }
+
+            // Mode switching
+            if (targetId === 'sidebarJump') {
+                currentMode = 'JUMP';
+            } else if (targetId === 'sidebarDrills') {
+                // Keep existing mode logic but could switch default if needed
+            }
+        }
+
+        // --- JUMP LAB LOGIC ---
+        function calibrateJump() {
+            if (!currentPoseLandmarks) return;
+
+            const nose = currentPoseLandmarks[0];
+            const heelL = currentPoseLandmarks[29];
+            const heelR = currentPoseLandmarks[30];
+            const hipL = currentPoseLandmarks[23];
+            const hipR = currentPoseLandmarks[24];
+
+            if (nose.visibility < 0.5 || heelL.visibility < 0.5 || heelR.visibility < 0.5) {
+                alert("¡Cuerpo completo no visible! Asegúrate de que se vean tu cabeza y tus pies.");
+                return;
+            }
+
+            const heelY = (heelL.y + heelR.y) / 2;
+            const heightPx = Math.abs(heelY - nose.y);
+            const userCm = parseInt(document.getElementById('athleteHeight').value) || 170;
+            pixelsPerCm = heightPx / userCm;
+            standingHipY = (hipL.y + hipR.y) / 2;
+            isCalibrated = true;
+            maxJumpHeight = 0;
+            document.getElementById('jumpMaxVal').innerHTML = '0<span class="text-sm text-gray-400">cm</span>';
+
+            const btn = document.getElementById('btnCalibrate');
+            btn.classList.remove('bg-gray-800', 'text-white');
+            btn.classList.add('bg-green-600', 'text-white');
+            btn.innerHTML = '<span class="text-lg">✅</span> CALIBRADO';
+            updateFeedback('green', '🧍', 'CALIBRADO. ¡SALTA!');
+            playBeep();
+        }
+
+        function resetJump() {
+            isCalibrated = false;
+            pixelsPerCm = 0;
+            maxJumpHeight = 0;
+            document.getElementById('jumpHeightVal').innerHTML = '0<span class="text-2xl text-gray-600">cm</span>';
+            document.getElementById('jumpMaxVal').innerHTML = '0<span class="text-sm text-gray-400">cm</span>';
+
+            const btn = document.getElementById('btnCalibrate');
+            btn.classList.add('bg-gray-800', 'text-white');
+            btn.classList.remove('bg-green-600');
+            btn.innerHTML = '<span class="text-lg">📏</span> <span class="lblCalibrate">CALIBRAR</span>';
+            updateFeedback('cyan', 'ℹ️', 'PÁRATE Y CALIBRA');
+        }
+
+        // --- DRILL LOGIC (Simplified for Demo) ---
+        function startDrill() {
+            if (isDrillActive) return;
+
+            // Toggle Buttons
+            btnStartDrill.classList.add('hidden');
+            btnStopDrill.classList.remove('hidden');
+
+            const exTime = parseInt(document.getElementById('drillExTime').value) || 5;
+            const holdTime = parseInt(document.getElementById('drillHoldTime').value) || 3;
+            let reps = parseInt(document.getElementById('drillReps').value) || 5;
+
+            isDrillActive = true;
+            drillOverlay.classList.remove('hidden');
+            holdTimerOverlay.classList.add('hidden'); // Hide simple hold timer during drill
+            btnStartDrill.disabled = true;
+
+            let phase = 'PREPARE';
+            let timer = 3;
+            updateDrillUI(t('drillPhasePrepare'), timer, reps);
+
+            drillInterval = setInterval(() => {
+                timer--;
+                if (timer < 0) {
+                    if (phase === 'PREPARE' || phase === 'HOLD') {
+                        if (reps <= 0) { finishDrill(); return; }
+                        phase = 'EXERCISE'; timer = exTime;
+                        updateDrillUI(t('drillPhaseMove'), timer, reps);
+                        drillPhase.className = "font-dojo text-4xl md:text-6xl text-kuma-cyan font-bold tracking-wider drop-shadow-lg mb-4";
+                    } else if (phase === 'EXERCISE') {
+                        phase = 'HOLD'; timer = holdTime; reps--;
+                        updateDrillUI(t('drillPhaseHold'), timer, reps);
+                        drillPhase.className = "font-dojo text-4xl md:text-6xl text-kuma-red font-bold tracking-wider drop-shadow-lg mb-4 animate-pulse";
+                    }
+                } else {
+                    drillTimerEl.innerText = timer;
+                }
+            }, 1000);
+        }
+
+        function updateDrillUI(text, time, reps) {
+            drillPhase.innerText = text;
+            drillTimerEl.innerText = time;
+            drillRepsDisplay.innerText = reps;
+        }
+
+        function finishDrill() {
+            clearInterval(drillInterval);
+            updateDrillUI(t('drillPhaseComplete'), "OK", 0);
+            drillPhase.className = "font-dojo text-4xl md:text-6xl text-kuma-accent font-bold tracking-wider drop-shadow-lg mb-4";
+            setTimeout(() => stopDrill(), 3000);
+        }
+
+        function stopDrill() {
+            clearInterval(drillInterval);
+            isDrillActive = false;
+            drillOverlay.classList.add('hidden');
+            // Toggle Buttons Back
+            btnStartDrill.classList.remove('hidden');
+            btnStartDrill.disabled = false;
+            btnStopDrill.classList.add('hidden');
+        }
+
+        // --- I18N ---
+        // Need to target by Class mostly now since elements are duplicated
+        function toggleLanguage() {
+            currentLang = currentLang === 'es' ? 'en' : 'es';
+            updateUIStrings();
+        }
+
+        function updateUIStrings() {
+            langDisplay.parentNode.innerHTML = currentLang === 'es'
+                ? '<span id="langDisplay" class="text-kuma-accent">ES</span> | <span class="text-gray-500">EN</span>'
+                : '<span class="text-gray-500">ES</span> | <span id="langDisplay" class="text-kuma-accent">EN</span>';
+
+            const map = {
+                'btnEnterLabel': 'btnEnter', 'navSimple': 'navSimple', 'navDrills': 'navDrills',
+                'lblStartDrill': 'lblStartDrill', 'lblStopDrill': 'lblStopDrill', 'lblJumpLab': 'lblJumpLab',
+                'lblCalibrate': 'lblCalibrate', 'lblCurrentJump': 'lblCurrentJump', 'lblMaxJump': 'lblMaxJump'
+            };
+
+
+
+            for (const [id, key] of Object.entries(map)) {
+                const el = document.getElementById(id);
+                if (el && translations[currentLang][key]) el.innerText = t(key);
+            }
+
+            // Classes
+            const classMap = {
+                'lblZone': 'lblZone', 'lblLower': 'lblLower', 'lblUpper': 'lblUpper',
+                'lblStrictness': 'lblStrictness', 'lblControl': 'lblControl', 'lblCapture': 'lblCapture',
+                'lblReset': 'lblReset', 'lblSound': 'lblSound', 'lblInstructionsTitle': 'lblInstructionsTitle',
+                'instructionText': currentMode === 'LOWER' ? 'instrLower' : 'instrUpper',
+                'lblConfigDrill': 'lblConfigDrill', 'lblSecondsEx': 'lblSecondsEx',
+                'lblSecondsHold': 'lblSecondsHold', 'lblReps': 'lblReps', 'lblControlDrill': 'lblControlDrill',
+                'lblAthleteHeight': 'lblAthleteHeight', 'lblJumpInstr': 'lblJumpInstr', 'lblCalibrate': 'lblCalibrate',
+                'lblJumpLab': 'lblJumpLab', 'lblCurrentJump': 'lblCurrentJump', 'lblMaxJump': 'lblMaxJump'
+            };
+
+            for (const [cls, key] of Object.entries(classMap)) {
+                document.querySelectorAll('.' + cls).forEach(el => {
+                    if (translations[currentLang][key]) el.innerText = t(key);
+                });
+            }
+
+            if (modeIndicator.innerText) {
+                if (currentMode === 'LOWER') modeIndicator.innerText = t('lblLower').toUpperCase();
+                else if (currentMode === 'UPPER') modeIndicator.innerText = t('lblUpper').toUpperCase();
+                else if (currentMode === 'JUMP') modeIndicator.innerText = "JUMP LAB";
+            }
+        }
+
+        // --- MEDIAPIPE & APP CORE ---
+
+        function initAudio() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+        }
+
+        function playBeep() {
+            if (!isAudioOn || !audioCtx) return;
+            const now = Date.now();
+            if (now - lastBeepTime < 800) return;
+            lastBeepTime = now;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = 'sine'; osc.frequency.value = 880;
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        async function initMediaPipe() {
+            pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
+            pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+            pose.onResults(onResults);
+            camera = new Camera(videoElement, { onFrame: async () => { await pose.send({ image: videoElement }); }, width: 1280, height: 720 });
+            await camera.start();
+        }
+
+        function captureReference() {
+            if (currentPoseLandmarks) {
+                if (!checkVisibility(currentPoseLandmarks)) { alert(t('stNoVisible')); return; }
+                referenceGeometry = calculateGeometry(currentPoseLandmarks);
+                referenceLandmarks = JSON.parse(JSON.stringify(currentPoseLandmarks));
+
+                // Reset Hold Timer
+                holdStartTime = 0; currentHoldTime = 0; isHolding = false;
+                holdTimerVal.innerText = "0.0s";
+                holdTimerOverlay.classList.remove('hidden'); // Ensure it's shown
+
+                updateFeedback('green', '🔒', t('stSaved'));
+                document.querySelectorAll('.control-capture').forEach(b => b.disabled = true);
+                document.querySelectorAll('.control-reset').forEach(b => b.disabled = false);
+                btnStartDrill.disabled = false;
+                playBeep();
+            }
+        }
+
+        function resetReference() {
+            referenceGeometry = null; referenceLandmarks = null;
+
+            // Reset Hold Timer
+            holdStartTime = 0; currentHoldTime = 0; isHolding = false;
+            holdTimerVal.innerText = "0.0s";
+
+            updateFeedback('cyan', '👁️', t('stLookingPose'));
+            videoContainer.style.borderColor = "#333";
+            videoContainer.classList.remove('shadow-glow-green', 'shadow-glow-red');
+            document.querySelectorAll('.control-capture').forEach(b => b.disabled = false);
+            document.querySelectorAll('.control-reset').forEach(b => b.disabled = true);
+            btnStartDrill.disabled = true;
+        }
+
+        function checkVisibility(landmarks) {
+            if (currentMode === 'LOWER') return (landmarks[23].visibility > 0.5 && landmarks[24].visibility > 0.5);
+            else if (currentMode === 'JUMP') return (landmarks[23].visibility > 0.5 && landmarks[24].visibility > 0.5); // Check hips for jump
+            else return (landmarks[11].visibility > 0.5 && landmarks[12].visibility > 0.5);
+        }
+
+        function calculateGeometry(landmarks) {
+            let geometry = [];
+            // Same logic as before
+            if (currentMode === 'LOWER') {
+                const hipL = landmarks[23]; const hipR = landmarks[24];
+                let scaleBase = Math.hypot(hipL.x - hipR.x, hipL.y - hipR.y) || 0.05;
+                const pairs = [[23, 25], [24, 26], [25, 27], [26, 28], [27, 28], [23, 27], [24, 28]];
+                for (let pair of pairs) geometry.push(Math.hypot(landmarks[pair[0]].x - landmarks[pair[1]].x, landmarks[pair[0]].y - landmarks[pair[1]].y) / scaleBase);
+            } else {
+                const shL = landmarks[11]; const shR = landmarks[12];
+                let scaleBase = Math.hypot(shL.x - shR.x, shL.y - shR.y) || 0.05;
+                const pairs = [[11, 13], [12, 14], [13, 15], [14, 16], [15, 16], [11, 15], [12, 16], [15, 12], [16, 11]];
+                for (let pair of pairs) geometry.push(Math.hypot(landmarks[pair[0]].x - landmarks[pair[1]].x, landmarks[pair[0]].y - landmarks[pair[1]].y) / scaleBase);
+            }
+            return geometry;
+        }
+
+        function compareGestures(currentGeo, refGeo) {
+            if (!refGeo || currentGeo.length !== refGeo.length) return false;
+            let totalError = 0;
+            for (let i = 0; i < currentGeo.length; i++) totalError += Math.abs(currentGeo[i] - refGeo[i]);
+
+            // STRICTNESS LOGIC
+            const maxTol = 2.0;
+            const minTol = 0.5;
+            const currentTol = maxTol - ((strictness / 100) * (maxTol - minTol));
+
+            return totalError < currentTol;
+        }
+
+        // Helpers (Angles, Draw) - Same as previous
+        function findAngle(A, B, C) {
+            const AB = Math.sqrt(Math.pow(B.x - A.x, 2) + Math.pow(B.y - A.y, 2));
+            const BC = Math.sqrt(Math.pow(B.x - C.x, 2) + Math.pow(B.y - C.y, 2));
+            const AC = Math.sqrt(Math.pow(C.x - A.x, 2) + Math.pow(C.y - A.y, 2));
+            return Math.round((Math.acos((BC * BC + AB * AB - AC * AC) / (2 * BC * AB)) * 180) / Math.PI);
+        }
+        function drawAngleMeasurement(ctx, A, B, C, color, width, height) {
+            if (A.visibility < 0.5 || B.visibility < 0.5 || C.visibility < 0.5) return;
+            const angle = findAngle(A, B, C);
+            const screenX = (1 - B.x) * width; const screenY = B.y * height;
+            ctx.save(); ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.roundRect(screenX + 10, screenY - 15, 45, 25, 5); ctx.fill();
+            ctx.fillStyle = color; ctx.font = "bold 16px Kanit"; ctx.fillText(angle + "°", screenX + 18, screenY + 3); ctx.restore();
+        }
+        const LOWER_CONNECTIONS = [[23, 24], [23, 25], [24, 26], [25, 27], [26, 28], [27, 28]];
+        const UPPER_CONNECTIONS = [[11, 12], [11, 13], [12, 14], [13, 15], [14, 16], [11, 23], [12, 24], [23, 24]];
+        function drawCustomConnections(ctx, landmarks, connections, color, lineWidth) {
+            ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = lineWidth; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            for (const pair of connections) {
+                const p1 = landmarks[pair[0]]; const p2 = landmarks[pair[1]];
+                if (p1 && p2 && p1.visibility > 0.5 && p2.visibility > 0.5) {
+                    ctx.beginPath(); ctx.moveTo(p1.x * ctx.canvas.width, p1.y * ctx.canvas.height);
+                    ctx.lineTo(p2.x * ctx.canvas.width, p2.y * ctx.canvas.height); ctx.stroke();
+                }
+            } ctx.restore();
+        }
+
+        // Render Loop
+        function onResults(results) {
+            const width = canvasElement.width; const height = canvasElement.height;
+            if (width !== videoContainer.clientWidth) { canvasElement.width = videoContainer.clientWidth; canvasElement.height = videoContainer.clientHeight; }
+
+            canvasCtx.save(); canvasCtx.clearRect(0, 0, width, height);
+            canvasCtx.translate(width, 0); canvasCtx.scale(-1, 1);
+            canvasCtx.drawImage(results.image, 0, 0, width, height);
+
+            if (results.poseLandmarks) {
+                currentPoseLandmarks = results.poseLandmarks;
+
+                // JUMP LAB MODE
+                if (currentMode === 'JUMP') {
+                    const hipL = currentPoseLandmarks[23];
+                    const hipR = currentPoseLandmarks[24];
+
+                    // Draw hips for reference
+                    canvasCtx.save();
+                    drawCustomConnections(canvasCtx, currentPoseLandmarks, [[23, 24], [23, 25], [24, 26]], '#00FFFF', 4);
+                    drawLandmarks(canvasCtx, currentPoseLandmarks, {
+                        color: (data) => [23, 24].includes(data.index) ? '#FFFF00' : '#00000000',
+                        fillColor: '#000', lineWidth: 2, radius: (data) => [23, 24].includes(data.index) ? 8 : 0
+                    });
+                    canvasCtx.restore();
+
+                    if (!isCalibrated) {
+                        canvasCtx.restore(); // CRITICAL FIX: Restore the initial save() from line 1118 before returning
+                        return;
+                    }
+
+                    // Calculate Jump Height
+                    // MediaPipe Y coordinates: 0 is top, 1 is bottom. Smaller Y = Higher Position.
+                    // Calculate HIP center Y
+                    const currentHipY = (hipL.y + hipR.y) / 2;
+
+                    // Delta: Standing Y (Lower value on screen, but higher Y coordinate) - Current Y (Higher position, Lower Y coordinate)
+                    // Wait. MediaPipe coordinate system: Top = 0, Bottom = 1.
+                    // So Standing Hip (e.g., 0.6) > Jumping Hip (e.g., 0.4).
+                    // Delta = Standing - Current. 
+                    let deltaY = standingHipY - currentHipY;
+
+                    if (deltaY > 0) {
+                        let jumpCm = deltaY / pixelsPerCm;
+                        if (jumpCm < 0) jumpCm = 0;
+
+                        // Update UI
+                        document.getElementById('jumpHeightVal').innerHTML = jumpCm.toFixed(1) + '<span class="text-2xl text-gray-600">cm</span>';
+
+                        // Update Max
+                        if (jumpCm > maxJumpHeight) {
+                            maxJumpHeight = jumpCm;
+                            document.getElementById('jumpMaxVal').innerHTML = maxJumpHeight.toFixed(1) + '<span class="text-sm text-gray-400">cm</span>';
+                        }
+                    }
+                    canvasCtx.restore(); // Restore safe context
+                    return; // Skip standard review logic
+                }
+
+                const isLower = currentMode === 'LOWER';
+                const activeConnections = isLower ? LOWER_CONNECTIONS : UPPER_CONNECTIONS;
+                const activeIndices = isLower ? [23, 24, 25, 26, 27, 28] : [11, 12, 13, 14, 15, 16, 23, 24];
+
+                if (checkVisibility(currentPoseLandmarks)) {
+                    let drawColor = '#00FFFF'; let lineWidth = 4;
+                    if (referenceLandmarks) {
+                        canvasCtx.save(); canvasCtx.globalAlpha = 0.3;
+                        drawCustomConnections(canvasCtx, referenceLandmarks, activeConnections, '#FFFFFF', 6);
+                        drawLandmarks(canvasCtx, referenceLandmarks, { color: (data) => activeIndices.includes(data.index) ? '#FFFFFF' : '#00000000', fillColor: '#FFFFFF', lineWidth: 1, radius: (data) => activeIndices.includes(data.index) ? 5 : 0 });
+                        canvasCtx.restore();
+                    }
+                    if (referenceGeometry) {
+                        if (compareGestures(calculateGeometry(currentPoseLandmarks), referenceGeometry)) {
+                            // MATCH -> Start/Update Hold Timer
+                            if (!isHolding) { isHolding = true; holdStartTime = Date.now(); }
+                            currentHoldTime = (Date.now() - holdStartTime) / 1000;
+                            holdTimerVal.innerText = currentHoldTime.toFixed(1) + "s";
+                            holdTimerVal.classList.add('text-green-400'); holdTimerVal.classList.remove('text-kuma-accent');
+
+                            updateFeedback('green', '✅', t('stExcellent'));
+                            videoContainer.style.borderColor = "#00ff00"; videoContainer.classList.remove('shadow-glow-red');
+                            drawColor = '#00ff00'; lineWidth = 8; playBeep();
+                        } else {
+                            // NO MATCH -> Stop Timer
+                            if (isHolding) {
+                                isHolding = false;
+                                if (currentHoldTime > maxHoldTime) { maxHoldTime = currentHoldTime; holdMaxVal.innerText = maxHoldTime.toFixed(1) + "s"; holdTimerBest.classList.remove('hidden'); }
+                                currentHoldTime = 0;
+                            }
+                            holdTimerVal.innerText = currentHoldTime.toFixed(1) + "s";
+                            holdTimerVal.classList.remove('text-green-400'); holdTimerVal.classList.add('text-kuma-accent');
+
+                            updateFeedback('red', '❌', t('stCorrect'));
+                            videoContainer.style.borderColor = "#ff0000"; videoContainer.classList.remove('shadow-glow-green');
+                            drawColor = '#ff0000'; lineWidth = 8;
+                        }
+                    } else {
+                        updateFeedback('cyan', '📸', t('stReady'));
+                        videoContainer.style.borderColor = "#00FFFF"; videoContainer.classList.add('shadow-glow-cyan');
+                    }
+                    drawCustomConnections(canvasCtx, currentPoseLandmarks, activeConnections, drawColor, lineWidth);
+                    drawLandmarks(canvasCtx, results.poseLandmarks, { color: (data) => activeIndices.includes(data.index) ? drawColor : '#00000000', fillColor: '#000', lineWidth: 2, radius: (data) => activeIndices.includes(data.index) ? 7 : 0 });
+                    canvasCtx.restore(); canvasCtx.save(); // Text unmirrored
+                    if (isLower) {
+                        drawAngleMeasurement(canvasCtx, currentPoseLandmarks[23], currentPoseLandmarks[25], currentPoseLandmarks[27], drawColor, width, height);
+                        drawAngleMeasurement(canvasCtx, currentPoseLandmarks[24], currentPoseLandmarks[26], currentPoseLandmarks[28], drawColor, width, height);
+                    } else {
+                        drawAngleMeasurement(canvasCtx, currentPoseLandmarks[11], currentPoseLandmarks[13], currentPoseLandmarks[15], drawColor, width, height);
+                        drawAngleMeasurement(canvasCtx, currentPoseLandmarks[12], currentPoseLandmarks[14], currentPoseLandmarks[16], drawColor, width, height);
+                        drawAngleMeasurement(canvasCtx, currentPoseLandmarks[13], currentPoseLandmarks[11], currentPoseLandmarks[23], drawColor, width, height);
+                        drawAngleMeasurement(canvasCtx, currentPoseLandmarks[14], currentPoseLandmarks[12], currentPoseLandmarks[24], drawColor, width, height);
+                    }
+                } else if (!referenceGeometry) {
+                    canvasCtx.restore(); canvasCtx.save();
+                    updateFeedback('red', '⚠️', isLower ? t('stNoLegs') : t('stNoTorso'));
+                    document.querySelectorAll('.control-capture').forEach(b => b.disabled = true);
+                }
+            } else { if (!referenceGeometry) updateFeedback('gray', '...', t('stWaiting')); }
+            canvasCtx.restore();
+        }
+
+        function updateFeedback(mode, icon, text) {
+            const colors = { 'green': '#00ff00', 'red': '#ff0000', 'cyan': '#00FFFF', 'gray': '#666' };
+            feedbackOverlay.style.borderColor = colors[mode] || '#666'; feedbackOverlay.style.color = colors[mode] || '#666';
+            feedbackIcon.innerText = icon; feedbackText.innerText = text;
+        }
+
+    </script>
+</body>
+
+</html>
